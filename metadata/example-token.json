@@ -1,0 +1,23 @@
+{
+  "name": "Festival Blockchain UNQ 2026 - Entrada 1",
+  "description": "Entrada oficial para el Festival Blockchain UNQ 2026.",
+  "image": "ipfs://REEMPLAZAR_CID/images/1.png",
+  "attributes": [
+    {
+      "trait_type": "Evento",
+      "value": "Festival Blockchain UNQ 2026"
+    },
+    {
+      "trait_type": "Fecha",
+      "value": "2026-10-15"
+    },
+    {
+      "trait_type": "Asiento",
+      "value": "Fila B - Asiento 17"
+    },
+    {
+      "trait_type": "Sector",
+      "value": "General"
+    }
+  ]
+}
