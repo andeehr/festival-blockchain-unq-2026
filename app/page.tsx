@@ -20,8 +20,9 @@ export default function Page() {
   const [remainingTickets, setRemainingTickets] = useState<bigint | null>(null);
   const [selectedRow, setSelectedRow] = useState(0);
   const [selectedSeat, setSelectedSeat] = useState(1);
-  const [availability, setAvailability] = useState<RowAvailability>(Array.from({ length: SEATS_PER_ROW }, () => false));
-  const [loadingRow, setLoadingRow] = useState(false);
+  const [availability, setAvailability] = useState<RowAvailability>(Array.from({ length: TOTAL_TICKETS }, () => false));
+  const [venueLoaded, setVenueLoaded] = useState(false);
+  const [loadingVenue, setLoadingVenue] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [status, setStatus] = useState('');
@@ -29,22 +30,16 @@ export default function Page() {
 
   const isConfigured = useMemo(() => CONTRACT_ADDRESS.length > 0, []);
   const rowLabel = ROW_LABELS[selectedRow];
-  const selectedSeatAvailable = !availability[selectedSeat - 1];
+  const selectedSeatKey = selectedRow * SEATS_PER_ROW + selectedSeat - 1;
+  const selectedSeatAvailable = venueLoaded && !availability[selectedSeatKey];
   const eventName = 'Festival Blockchain UNQ 2026';
   const eventVenue = 'Universidad Nacional de Quilmes, Buenos Aires';
   const eventDate = '15 de octubre de 2026';
 
   useEffect(() => {
     void refreshContractData();
+    void refreshVenueAvailability();
   }, []);
-
-  useEffect(() => {
-    if (!wallet) {
-      return;
-    }
-
-    void refreshRowAvailability(selectedRow);
-  }, [wallet, selectedRow]);
 
   async function getBrowserProvider() {
     if (typeof window === 'undefined' || !(window as Window & { ethereum?: unknown }).ethereum) {
@@ -87,6 +82,39 @@ export default function Page() {
     }
   }
 
+  async function refreshVenueAvailability() {
+    if (!CONTRACT_ADDRESS) {
+      return;
+    }
+
+    setLoadingVenue(true);
+    try {
+      const provider = await getBrowserProvider().catch(() => null);
+      if (!provider) {
+        return;
+      }
+
+      const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const seatChecks = await Promise.all(
+        Array.from({ length: TOTAL_TICKETS }, async (_, index) => contract.seatTaken(index + 1))
+      );
+
+      setAvailability(seatChecks.map((value: boolean) => Boolean(value)));
+      setVenueLoaded(true);
+
+      const firstFreeSeat = seatChecks.findIndex((taken: boolean) => !taken);
+      if (firstFreeSeat >= 0) {
+        setSelectedRow(Math.floor(firstFreeSeat / SEATS_PER_ROW));
+        setSelectedSeat((firstFreeSeat % SEATS_PER_ROW) + 1);
+      }
+    } catch {
+      setAvailability(Array.from({ length: TOTAL_TICKETS }, () => false));
+      setVenueLoaded(false);
+    } finally {
+      setLoadingVenue(false);
+    }
+  }
+
   async function connectWallet() {
     setConnecting(true);
     setStatus('');
@@ -100,7 +128,7 @@ export default function Page() {
 
       setWallet({ address, chainId: network.chainId });
       await refreshContractData();
-      await refreshRowAvailability(selectedRow);
+      await refreshVenueAvailability();
 
       if (network.chainId !== 11155111n) {
         setStatus('La wallet esta conectada, pero conviene usar Sepolia.');
@@ -114,53 +142,35 @@ export default function Page() {
     }
   }
 
-  async function refreshRowAvailability(rowIndex: number) {
-    if (!CONTRACT_ADDRESS) {
-      return;
-    }
-
-    setLoadingRow(true);
-    try {
-      const provider = await getBrowserProvider();
-      const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-      const seatChecks = await Promise.all(
-        Array.from({ length: SEATS_PER_ROW }, async (_, index) => {
-          const seatNumber = index + 1;
-          const seatKey = rowIndex * SEATS_PER_ROW + seatNumber;
-          return contract.seatTaken(seatKey);
-        })
-      );
-      setAvailability(seatChecks.map((value: boolean) => Boolean(value)));
-      const firstFreeSeat = seatChecks.findIndex((taken: boolean) => !taken);
-      if (firstFreeSeat >= 0) {
-        setSelectedSeat(firstFreeSeat + 1);
-      }
-    } catch {
-      setAvailability(Array.from({ length: SEATS_PER_ROW }, () => false));
-    } finally {
-      setLoadingRow(false);
-    }
-  }
-
   function assignRandomSeat() {
     const freeSeats = availability
-      .map((taken, index) => ({ taken, seat: index + 1 }))
+      .map((taken, index) => ({
+        taken,
+        rowIndex: Math.floor(index / SEATS_PER_ROW),
+        seat: (index % SEATS_PER_ROW) + 1
+      }))
       .filter((entry) => !entry.taken)
-      .map((entry) => entry.seat);
+      .map((entry) => ({ rowIndex: entry.rowIndex, seat: entry.seat }));
 
     if (freeSeats.length === 0) {
-      setStatus('No quedan asientos disponibles en esta fila.');
+      setStatus('No quedan asientos disponibles.');
       return;
     }
 
     const randomSeat = freeSeats[Math.floor(Math.random() * freeSeats.length)];
-    setSelectedSeat(randomSeat);
-    setStatus(`Se selecciono al azar ${rowLabel}-${randomSeat}.`);
+    setSelectedRow(randomSeat.rowIndex);
+    setSelectedSeat(randomSeat.seat);
+    setStatus(`Se selecciono al azar ${ROW_LABELS[randomSeat.rowIndex]}-${randomSeat.seat}.`);
   }
 
   async function buyTicket() {
     if (!wallet) {
       setStatus('Primero conecta MetaMask.');
+      return;
+    }
+
+    if (!venueLoaded) {
+      setStatus('Todavia se estan cargando los asientos.');
       return;
     }
 
@@ -251,16 +261,58 @@ export default function Page() {
         </div>
 
         <div className="seatPicker">
-          <div className="rowTabs">
-            {ROW_LABELS.map((label, index) => (
-              <button
-                key={label}
-                className={index === selectedRow ? 'rowTab active' : 'rowTab'}
-                onClick={() => setSelectedRow(index)}
-              >
-                Fila {label}
-              </button>
-            ))}
+          <div className="venueMap">
+            <div className="stageBlock">
+              <span className="stageKicker">Main Stage</span>
+              <strong>Charlas, música y cierre en vivo</strong>
+            </div>
+
+            <div className="venueMapScroll">
+              <div className="venueMapBody">
+                {ROW_LABELS.map((label, rowIndex) => (
+                  <div className="venueRow" key={label}>
+                    <div className={rowIndex === selectedRow ? 'rowBadge active' : 'rowBadge'}>
+                      <span>Fila</span>
+                      <strong>{label}</strong>
+                    </div>
+
+                    <div className="rowClusters">
+                      {Array.from({ length: 5 }, (_, clusterIndex) => (
+                        <div className="seatCluster" key={`${label}-${clusterIndex}`}>
+                          {Array.from({ length: 10 }, (_, seatOffset) => {
+                            const seatNumber = clusterIndex * 10 + seatOffset + 1;
+                            const seatKey = rowIndex * SEATS_PER_ROW + seatNumber - 1;
+                            const taken = venueLoaded ? availability[seatKey] : false;
+                            const active = rowIndex === selectedRow && seatNumber === selectedSeat;
+
+                            return (
+                              <button
+                                key={seatNumber}
+                                className={active ? 'seatDot active' : taken ? 'seatDot taken' : 'seatDot'}
+                                onClick={() => {
+                                  setSelectedRow(rowIndex);
+                                  setSelectedSeat(seatNumber);
+                                }}
+                                disabled={loadingVenue || !venueLoaded || taken}
+                                title={taken ? `Ocupado ${label}-${seatNumber}` : `Seleccionar ${label}-${seatNumber}`}
+                              >
+                                {seatNumber}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="seatLegend">
+              <span><i className="legendDot available" />Disponible</span>
+              <span><i className="legendDot selected" />Seleccionado</span>
+              <span><i className="legendDot occupied" />Ocupado</span>
+            </div>
           </div>
 
           <div className="pickerMeta">
@@ -274,34 +326,15 @@ export default function Page() {
             </div>
             <div>
               <span className="label">Disponibilidad</span>
-              <strong>{loadingRow ? 'Cargando asientos...' : selectedSeatAvailable ? 'Disponible' : 'Ocupado'}</strong>
+              <strong>{loadingVenue ? 'Cargando asientos...' : venueLoaded && selectedSeatAvailable ? 'Disponible' : 'Ocupado'}</strong>
             </div>
           </div>
 
-          <div className="seatGrid" aria-label="Selector de asientos">
-            {Array.from({ length: SEATS_PER_ROW }, (_, index) => {
-              const seatNumber = index + 1;
-              const taken = availability[index];
-              const active = seatNumber === selectedSeat;
-              return (
-                <button
-                  key={seatNumber}
-                  className={active ? 'seat active' : taken ? 'seat taken' : 'seat'}
-                  onClick={() => setSelectedSeat(seatNumber)}
-                  disabled={taken}
-                  title={taken ? 'Asiento ocupado' : `Seleccionar ${rowLabel}-${seatNumber}`}
-                >
-                  {seatNumber}
-                </button>
-              );
-            })}
-          </div>
-
           <div className="actionRow">
-            <button className="ghostButton" onClick={assignRandomSeat} disabled={loadingRow}>
+            <button className="ghostButton" onClick={assignRandomSeat} disabled={loadingVenue || !venueLoaded}>
               Elegir lugar al azar
             </button>
-            <button className="primaryButton" onClick={buyTicket} disabled={purchasing || !wallet || !selectedSeatAvailable || !ticketPriceWei}>
+            <button className="primaryButton" onClick={buyTicket} disabled={purchasing || !wallet || !venueLoaded || !selectedSeatAvailable || !ticketPriceWei}>
               {purchasing ? 'Procesando...' : `Comprar ${rowLabel}-${selectedSeat}`}
             </button>
           </div>
