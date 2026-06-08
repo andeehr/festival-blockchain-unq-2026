@@ -67,5 +67,3 @@ Para verificar un ticket en la puerta, el check-in debe consultar on-chain:
 - `ownerOf(tokenId)` para saber quien es el titular actual
 - `tokenURI(tokenId)` para ver la metadata asociada
 - opcionalmente, una pagina web o QR puede abrir una vista con esos datos
-
-Si queres un QR dentro de la imagen del ticket, puede ser solo una ayuda visual. La validacion real sigue siendo on-chain.
