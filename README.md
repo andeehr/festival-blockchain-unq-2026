@@ -1,14 +1,24 @@
 # Festival Blockchain UNQ 2026
 
-Contrato ERC-721 para 500 entradas fijas, con:
+Proyecto practico de tokenizacion de entradas con ERC-721.
+
+## Alcance
+
+Este repo incluye dos partes:
+
+- un contrato Solidity para emitir 500 entradas NFT fijas
+- un front basico en Next.js para comprar y elegir ubicacion
+
+La idea es simular una ticketera real para un evento ficticio, con metadata fuera de cadena, royalties y transferencias habilitadas solo hasta la fecha del evento.
+
+### Incluye
 
 - compra directa mint-eando 1 ticket por vez
 - supply maximo de 500
 - metadata off-chain por tokenId
 - transferencias habilitadas solo hasta la fecha del evento
 - royalties del 10% via EIP-2981
-
-Tambien incluye un front basico en Next.js listo para desplegar en Vercel, con selector de fila y asiento.
+- selector visual de filas y asientos en el front
 
 ## Idea tecnica
 
@@ -39,6 +49,12 @@ El contrato se despliega con estos parametros:
 
 Importante: `baseTokenURI` debe terminar con `/` para que la URI final quede bien formada.
 
+Ejemplo de valores para el deploy:
+
+- `ticketPriceWei = 1000000000000000` para `0.001 ETH`
+- `royaltyFeeBps = 1000` para 10%
+- `baseTokenURI = ipfs://<CID>/`
+
 ## Uso en Remix
 
 1. Crear un archivo nuevo con el contenido de `contracts/FestivalBlockchainUNQ2026.sol`.
@@ -46,6 +62,28 @@ Importante: `baseTokenURI` debe terminar con `/` para que la URI final quede bie
 3. Desplegar en Sepolia con MetaMask.
 4. Pasar los parametros del constructor.
 5. Llamar a `buyTicket()` enviando exactamente el precio del ticket.
+
+## Instalacion local
+
+1. Instalar dependencias:
+
+	```bash
+	npm install
+	```
+
+2. Crear un archivo `.env.local` en la raiz del proyecto con la address del contrato desplegado en Sepolia:
+
+	```bash
+	NEXT_PUBLIC_CONTRACT_ADDRESS=0xTuAddressDeSepolia
+	```
+
+3. Levantar el front en desarrollo:
+
+	```bash
+	npm run dev
+	```
+
+4. Abrir `http://localhost:3000` y conectar MetaMask en Sepolia.
 
 ## Front en Vercel
 
@@ -59,6 +97,15 @@ Luego:
 2. Ejecutar `npm run dev` en local.
 3. Desplegar el repo en Vercel.
 4. Configurar la variable de entorno en Vercel con la address del contrato de Sepolia.
+
+## Verificacion rapida
+
+Antes de entregar, conviene chequear:
+
+- que el contrato este desplegado en Sepolia
+- que `NEXT_PUBLIC_CONTRACT_ADDRESS` apunte a esa address
+- que MetaMask tenga Sepolia ETH para gas
+- que la metadata en IPFS responda con el `tokenURI` correcto
 
 ## Verificacion en entrada
 
