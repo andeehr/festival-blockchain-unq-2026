@@ -8,6 +8,8 @@ Contrato ERC-721 para 500 entradas fijas, con:
 - transferencias habilitadas solo hasta la fecha del evento
 - royalties del 10% via EIP-2981
 
+Tambien incluye un front basico en Next.js listo para desplegar en Vercel, con selector de fila y asiento.
+
 ## Idea tecnica
 
 La autenticidad del ticket la da la blockchain: el contrato, el tokenId y el owner actual.
@@ -44,6 +46,19 @@ Importante: `baseTokenURI` debe terminar con `/` para que la URI final quede bie
 3. Desplegar en Sepolia con MetaMask.
 4. Pasar los parametros del constructor.
 5. Llamar a `buyTicket()` enviando exactamente el precio del ticket.
+
+## Front en Vercel
+
+El front espera estas variables de entorno:
+
+- `NEXT_PUBLIC_CONTRACT_ADDRESS`
+
+Luego:
+
+1. Instalar dependencias con `npm install`.
+2. Ejecutar `npm run dev` en local.
+3. Desplegar el repo en Vercel.
+4. Configurar la variable de entorno en Vercel con la address del contrato de Sepolia.
 
 ## Verificacion en entrada
 
