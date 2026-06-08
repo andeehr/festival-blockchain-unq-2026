@@ -11,7 +11,7 @@ type WalletState = {
 
 type RowAvailability = boolean[];
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '0x382172c5118f8bf73f53510d317ce36fd99d8c7f';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '';
 
 export default function Page() {
   const [wallet, setWallet] = useState<WalletState | null>(null);
@@ -52,7 +52,8 @@ export default function Page() {
       throw new Error('MetaMask no esta disponible en este navegador.');
     }
 
-    return new BrowserProvider((window as Window & { ethereum: Parameters<typeof BrowserProvider>[0] }).ethereum);
+    const injectedProvider = (window as Window & { ethereum?: unknown }).ethereum;
+    return new BrowserProvider(injectedProvider as never);
   }
 
   async function getContract() {
