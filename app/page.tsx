@@ -1,6 +1,6 @@
 'use client';
 
-import { BrowserProvider, Contract, formatEther, formatUnits, parseEther } from 'ethers';
+import { BrowserProvider, Contract, formatEther } from 'ethers';
 import { useEffect, useMemo, useState } from 'react';
 import { CONTRACT_ABI, ROW_LABELS, SEATS_PER_ROW, TOTAL_TICKETS } from '../lib/contract';
 
@@ -11,7 +11,7 @@ type WalletState = {
 
 type RowAvailability = boolean[];
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '0x382172c5118f8bf73f53510d317ce36fd99d8c7f';
 
 export default function Page() {
   const [wallet, setWallet] = useState<WalletState | null>(null);
@@ -30,6 +30,9 @@ export default function Page() {
   const isConfigured = useMemo(() => CONTRACT_ADDRESS.length > 0, []);
   const rowLabel = ROW_LABELS[selectedRow];
   const selectedSeatAvailable = !availability[selectedSeat - 1];
+  const eventName = 'Festival Blockchain UNQ 2026';
+  const eventVenue = 'Universidad Nacional de Quilmes, Buenos Aires';
+  const eventDate = '15 de octubre de 2026';
 
   useEffect(() => {
     void refreshContractData();
@@ -202,17 +205,17 @@ export default function Page() {
     <main className="shell">
       <section className="hero">
         <div>
-          <p className="eyebrow">Festival Blockchain UNQ 2026</p>
-          <h1>Entradas NFT con ubicacion elegible, reventa permitida y metadata fuera de cadena.</h1>
+          <p className="eyebrow">{eventName}</p>
+          <h1>Charlas, música, comida y una noche pensada para encontrarse con la comunidad.</h1>
           <p className="lede">
-            Cada ticket es un ERC-721 unico. El usuario elige fila y asiento, el contrato evita duplicados,
-            y la transferencia queda habilitada solo hasta la fecha del evento.
+            Una experiencia urbana con speakers invitados, profesores y artistas en vivo
+            pensada para mezclar ideas, networking y buen morfi en un mismo lugar.
           </p>
         </div>
 
         <div className="heroCard">
           <div>
-            <span className="label">Supply maximo</span>
+            <span className="label">Aforo total</span>
             <strong>{TOTAL_TICKETS} tickets</strong>
           </div>
           <div>
@@ -220,11 +223,11 @@ export default function Page() {
             <strong>{remainingTickets?.toString() ?? '...'}</strong>
           </div>
           <div>
-            <span className="label">Precio</span>
+            <span className="label">Valor de entrada</span>
             <strong>{ticketPriceWei ? `${formatEther(ticketPriceWei)} ETH` : '...'}</strong>
           </div>
           <div>
-            <span className="label">Cierre</span>
+            <span className="label">Apertura / cierre</span>
             <strong>{deadline ? new Date(Number(deadline) * 1000).toLocaleString('es-AR') : '...'}</strong>
           </div>
         </div>
@@ -233,7 +236,7 @@ export default function Page() {
       <section className="panel">
         <div className="panelHeader">
           <div>
-            <p className="sectionKicker">Compra</p>
+            <p className="sectionKicker">Entradas</p>
             <h2>Elegi la ubicacion del ticket</h2>
           </div>
           <button className="ghostButton" onClick={connectWallet} disabled={connecting || !isConfigured}>
@@ -242,9 +245,9 @@ export default function Page() {
         </div>
 
         <div className="connectionRow">
-          <span className="pill">Contrato: {CONTRACT_ADDRESS || 'no configurado'}</span>
+          <span className="pill">Sede: {eventVenue}</span>
+          <span className="pill">Fecha: {eventDate}</span>
           <span className="pill">Wallet: {wallet?.address ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : 'desconectada'}</span>
-          <span className="pill">Red: {wallet ? `${wallet.chainId.toString()}` : 'sin red'}</span>
         </div>
 
         <div className="seatPicker">
@@ -262,15 +265,15 @@ export default function Page() {
 
           <div className="pickerMeta">
             <div>
-              <span className="label">Fila seleccionada</span>
+              <span className="label">Sector elegido</span>
               <strong>{rowLabel}</strong>
             </div>
             <div>
-              <span className="label">Asiento seleccionado</span>
+              <span className="label">Ubicacion elegida</span>
               <strong>{rowLabel}-{selectedSeat}</strong>
             </div>
             <div>
-              <span className="label">Estado</span>
+              <span className="label">Disponibilidad</span>
               <strong>{loadingRow ? 'Cargando asientos...' : selectedSeatAvailable ? 'Disponible' : 'Ocupado'}</strong>
             </div>
           </div>
@@ -296,7 +299,7 @@ export default function Page() {
 
           <div className="actionRow">
             <button className="ghostButton" onClick={assignRandomSeat} disabled={loadingRow}>
-              Elegir al azar en esta fila
+              Elegir lugar al azar
             </button>
             <button className="primaryButton" onClick={buyTicket} disabled={purchasing || !wallet || !selectedSeatAvailable || !ticketPriceWei}>
               {purchasing ? 'Procesando...' : `Comprar ${rowLabel}-${selectedSeat}`}
@@ -307,28 +310,29 @@ export default function Page() {
 
       <section className="panel infoGrid">
         <article>
-          <h3>Metadata</h3>
+          <h3>Charlas y paneles</h3>
           <p>
-            La autenticidad vive en la blockchain. La metadata se guarda off-chain, idealmente en IPFS,
-            y el tokenURI apunta a un JSON por ticket.
+            Una agenda con profesores invitados, fundadores, investigadores y referentes de la escena
+            digital para debatir ideas, tendencias y futuro.
           </p>
         </article>
         <article>
-          <h3>Verificacion</h3>
+          <h3>Escenario y artistas</h3>
           <p>
-            En puerta se puede leer ownerOf(tokenId) y, si hace falta, seatOfToken(tokenId) o seatLabelOf(tokenId).
+            Cierre con bandas en vivo, visuales inmersivos y DJs invitados para extender la noche hasta el after.
           </p>
         </article>
         <article>
-          <h3>Royalties</h3>
+          <h3>Gastronomía y encuentro</h3>
           <p>
-            El contrato expone EIP-2981 con 10% para el artista, si el marketplace lo respeta.
+            Patio gastronómico con food trucks, cafetería de especialidad y espacios pensados para networking
+            entre charlas, música y experiencias.
           </p>
         </article>
       </section>
 
       <section className="statusBar">
-        <span>{status || 'Listo para conectar y comprar.'}</span>
+        <span>{status || 'Listo para elegir tu lugar y asegurar tu entrada.'}</span>
         {txHash ? <span className="mono">{txHash}</span> : null}
       </section>
     </main>
