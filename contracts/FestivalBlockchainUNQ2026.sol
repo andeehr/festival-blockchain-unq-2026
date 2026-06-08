@@ -95,7 +95,7 @@ contract FestivalBlockchainUNQ2026 is ERC721, ERC2981, Ownable {
         return string.concat(
             string(abi.encodePacked(bytes1(uint8(65 + seat.rowIndex)))),
             "-",
-            seat.seatNumber.toString()
+            uint256(seat.seatNumber).toString()
         );
     }
 
