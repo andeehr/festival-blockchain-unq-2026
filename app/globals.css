@@ -433,16 +433,65 @@ input {
   line-height: 1.55;
 }
 
-.statusBar {
-  margin-top: 18px;
+.toast {
+  position: fixed;
+  right: 22px;
+  top: 22px;
+  z-index: 50;
+  width: min(440px, calc(100vw - 32px));
   border-radius: 20px;
-  background: rgba(19, 32, 49, 0.92);
-  color: white;
   padding: 16px 18px;
   display: flex;
+  gap: 14px;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  flex-wrap: wrap;
+  box-shadow: 0 24px 60px rgba(19, 32, 49, 0.24);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+}
+
+.toastText {
+  display: grid;
+  gap: 6px;
+}
+
+.toastText strong {
+  font-size: 0.98rem;
+  letter-spacing: 0.02em;
+}
+
+.toastText span {
+  line-height: 1.45;
+}
+
+.toastClose {
+  border: 0;
+  background: rgba(255, 255, 255, 0.18);
+  color: inherit;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.toastNeutral {
+  background: rgba(19, 32, 49, 0.94);
+  color: white;
+}
+
+.toastSuccess {
+  background: linear-gradient(135deg, rgba(18, 116, 78, 0.96), rgba(26, 163, 106, 0.96));
+  color: white;
+}
+
+.toastError {
+  background: linear-gradient(135deg, rgba(165, 32, 32, 0.96), rgba(223, 72, 58, 0.96));
+  color: white;
 }
 
 .mono {
@@ -490,5 +539,11 @@ input {
   .primaryButton,
   .ghostButton {
     width: 100%;
+  }
+
+  .toast {
+    right: 10px;
+    top: 10px;
+    width: calc(100vw - 20px);
   }
 }

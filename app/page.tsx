@@ -26,6 +26,7 @@ export default function Page() {
   const [connecting, setConnecting] = useState(false);
   const [purchasing, setPurchasing] = useState(false);
   const [status, setStatus] = useState('');
+  const [statusTone, setStatusTone] = useState<'neutral' | 'success' | 'error'>('neutral');
   const [txHash, setTxHash] = useState('');
 
   const isConfigured = useMemo(() => CONTRACT_ADDRESS.length > 0, []);
@@ -35,6 +36,11 @@ export default function Page() {
   const eventName = 'Festival Blockchain UNQ 2026';
   const eventVenue = 'Universidad Nacional de Quilmes, Buenos Aires';
   const eventDate = '15 de octubre de 2026';
+
+  function updateStatus(message: string, tone: 'neutral' | 'success' | 'error' = 'neutral') {
+    setStatus(message);
+    setStatusTone(tone);
+  }
 
   useEffect(() => {
     void refreshContractData();
@@ -57,7 +63,7 @@ export default function Page() {
 
   async function refreshContractData() {
     if (!CONTRACT_ADDRESS) {
-      setStatus('Falta configurar NEXT_PUBLIC_CONTRACT_ADDRESS.');
+      updateStatus('Falta configurar NEXT_PUBLIC_CONTRACT_ADDRESS.', 'error');
       return;
     }
 
@@ -78,7 +84,7 @@ export default function Page() {
       setDeadline(BigInt(eventDeadline.toString()));
       setRemainingTickets(BigInt(remaining.toString()));
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'No se pudo leer el contrato.');
+      updateStatus(error instanceof Error ? error.message : 'No se pudo leer el contrato.', 'error');
     }
   }
 
@@ -117,7 +123,7 @@ export default function Page() {
 
   async function connectWallet() {
     setConnecting(true);
-    setStatus('');
+    updateStatus('');
 
     try {
       const provider = await getBrowserProvider();
@@ -131,12 +137,12 @@ export default function Page() {
       await refreshVenueAvailability();
 
       if (network.chainId !== 11155111n) {
-        setStatus('La wallet esta conectada, pero conviene usar Sepolia.');
+        updateStatus('La wallet esta conectada, pero conviene usar Sepolia.', 'neutral');
       } else {
-        setStatus('Wallet conectada en Sepolia.');
+        updateStatus('Wallet conectada en Sepolia.', 'success');
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'No se pudo conectar la wallet.');
+      updateStatus(error instanceof Error ? error.message : 'No se pudo conectar la wallet.', 'error');
     } finally {
       setConnecting(false);
     }
@@ -153,39 +159,39 @@ export default function Page() {
       .map((entry) => ({ rowIndex: entry.rowIndex, seat: entry.seat }));
 
     if (freeSeats.length === 0) {
-      setStatus('No quedan asientos disponibles.');
+      updateStatus('No quedan asientos disponibles.', 'error');
       return;
     }
 
     const randomSeat = freeSeats[Math.floor(Math.random() * freeSeats.length)];
     setSelectedRow(randomSeat.rowIndex);
     setSelectedSeat(randomSeat.seat);
-    setStatus(`Se selecciono al azar ${ROW_LABELS[randomSeat.rowIndex]}-${randomSeat.seat}.`);
+    updateStatus(`Se selecciono al azar ${ROW_LABELS[randomSeat.rowIndex]}-${randomSeat.seat}.`, 'neutral');
   }
 
   async function buyTicket() {
     if (!wallet) {
-      setStatus('Primero conecta MetaMask.');
+      updateStatus('Primero conecta MetaMask.', 'error');
       return;
     }
 
     if (!venueLoaded) {
-      setStatus('Todavia se estan cargando los asientos.');
+      updateStatus('Todavia se estan cargando los asientos.', 'neutral');
       return;
     }
 
     if (!selectedSeatAvailable) {
-      setStatus('Ese asiento ya esta ocupado. Elegi otro.');
+      updateStatus('Ese asiento ya esta ocupado. Elegi otro.', 'error');
       return;
     }
 
     if (!ticketPriceWei) {
-      setStatus('Aun no se pudo leer el precio del ticket.');
+      updateStatus('Aun no se pudo leer el precio del ticket.', 'error');
       return;
     }
 
     setPurchasing(true);
-    setStatus('');
+    updateStatus('', 'neutral');
     setTxHash('');
 
     try {
@@ -194,18 +200,18 @@ export default function Page() {
         value: ticketPriceWei
       });
       setTxHash(tx.hash);
-      setStatus('Transaccion enviada. Esperando confirmacion...');
+      updateStatus('Transaccion enviada. Esperando confirmacion...', 'neutral');
 
       const receipt = await tx.wait();
       if (receipt?.status === 1) {
-        setStatus(`Compra confirmada para ${rowLabel}-${selectedSeat}.`);
+        updateStatus(`Compra confirmada para ${rowLabel}-${selectedSeat}.`, 'success');
         await refreshContractData();
         await refreshVenueAvailability();
       } else {
-        setStatus('La transaccion no fue confirmada.');
+        updateStatus('La transaccion no fue confirmada.', 'error');
       }
     } catch (error) {
-      setStatus(getPurchaseErrorMessage(error));
+      updateStatus(getPurchaseErrorMessage(error), 'error');
     } finally {
       setPurchasing(false);
     }
@@ -395,10 +401,18 @@ export default function Page() {
         </article>
       </section>
 
-      <section className="statusBar">
-        <span>{status || 'Listo para elegir tu lugar y asegurar tu entrada.'}</span>
-        {txHash ? <span className="mono">{txHash}</span> : null}
-      </section>
+      {status ? (
+        <section className={statusTone === 'success' ? 'toast toastSuccess' : statusTone === 'error' ? 'toast toastError' : 'toast toastNeutral'}>
+          <div className="toastText">
+            <strong>{statusTone === 'success' ? 'Listo' : statusTone === 'error' ? 'Atencion' : 'Info'}</strong>
+            <span>{status}</span>
+            {txHash ? <span className="mono">{txHash}</span> : null}
+          </div>
+          <button className="toastClose" onClick={() => updateStatus('', 'neutral')} aria-label="Cerrar mensaje">
+            ×
+          </button>
+        </section>
+      ) : null}
     </main>
   );
 }
