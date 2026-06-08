@@ -200,15 +200,46 @@ export default function Page() {
       if (receipt?.status === 1) {
         setStatus(`Compra confirmada para ${rowLabel}-${selectedSeat}.`);
         await refreshContractData();
-        await refreshRowAvailability(selectedRow);
+        await refreshVenueAvailability();
       } else {
         setStatus('La transaccion no fue confirmada.');
       }
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : 'No se pudo comprar el ticket.');
+      setStatus(getPurchaseErrorMessage(error));
     } finally {
       setPurchasing(false);
     }
+  }
+
+  function getPurchaseErrorMessage(error: unknown) {
+    const errorText = error instanceof Error ? error.message : String(error);
+    const normalizedText = errorText.toLowerCase();
+
+    if (normalizedText.includes('outoffunds') || normalizedText.includes('insufficient funds')) {
+      return 'No tenes fondos suficientes en Sepolia para pagar el ticket y el gas.';
+    }
+
+    if (normalizedText.includes('missing revert data') && normalizedText.includes('estimategas')) {
+      return 'No se pudo estimar el gas. Revisá saldo, red y que el asiento siga disponible.';
+    }
+
+    if (normalizedText.includes('user rejected') || normalizedText.includes('rejected the request')) {
+      return 'La transaccion fue rechazada en MetaMask.';
+    }
+
+    if (normalizedText.includes('ticket sales are closed')) {
+      return 'La venta de tickets ya cerro.';
+    }
+
+    if (normalizedText.includes('seat already sold')) {
+      return 'Ese asiento ya fue vendido. Elegi otro.';
+    }
+
+    if (normalizedText.includes('incorrect ticket price')) {
+      return 'El valor enviado no coincide con el precio del ticket.';
+    }
+
+    return errorText || 'No se pudo comprar el ticket.';
   }
 
   return (
