@@ -98,15 +98,6 @@ Luego:
 3. Desplegar el repo en Vercel.
 4. Configurar la variable de entorno en Vercel con la address del contrato de Sepolia.
 
-## Verificacion rapida
-
-Antes de entregar, conviene chequear:
-
-- que el contrato este desplegado en Sepolia
-- que `NEXT_PUBLIC_CONTRACT_ADDRESS` apunte a esa address
-- que MetaMask tenga Sepolia ETH para gas
-- que la metadata en IPFS responda con el `tokenURI` correcto
-
 ## Verificacion en entrada
 
 Para verificar un ticket en la puerta, el check-in debe consultar on-chain:
