@@ -64,7 +64,7 @@ export default function Page() {
 
   async function refreshContractData() {
     if (!CONTRACT_ADDRESS) {
-      updateStatus('Falta configurar NEXT_PUBLIC_CONTRACT_ADDRESS.', 'error');
+      updateStatus('Falta cargar NEXT_PUBLIC_CONTRACT_ADDRESS.', 'error');
       return;
     }
 
@@ -85,7 +85,7 @@ export default function Page() {
       setDeadline(BigInt(eventDeadline.toString()));
       setRemainingTickets(BigInt(remaining.toString()));
     } catch (error) {
-      updateStatus(error instanceof Error ? error.message : 'No se pudo leer el contrato.', 'error');
+      updateStatus(error instanceof Error ? error.message : 'No pudimos leer el contrato.', 'error');
     }
   }
 
@@ -138,12 +138,12 @@ export default function Page() {
       await refreshVenueAvailability();
 
       if (network.chainId !== 11155111n) {
-        updateStatus('La wallet esta conectada, pero conviene usar Sepolia.', 'neutral');
+        updateStatus('La wallet quedó conectada, pero mejor usar Sepolia.', 'neutral');
       } else {
         updateStatus('Wallet conectada en Sepolia.', 'success');
       }
     } catch (error) {
-      updateStatus(error instanceof Error ? error.message : 'No se pudo conectar la wallet.', 'error');
+      updateStatus(error instanceof Error ? error.message : 'No pudimos conectar la wallet.', 'error');
     } finally {
       setConnecting(false);
     }
@@ -160,34 +160,34 @@ export default function Page() {
       .map((entry) => ({ rowIndex: entry.rowIndex, seat: entry.seat }));
 
     if (freeSeats.length === 0) {
-      updateStatus('No quedan asientos disponibles.', 'error');
+      updateStatus('No quedan lugares libres.', 'error');
       return;
     }
 
     const randomSeat = freeSeats[Math.floor(Math.random() * freeSeats.length)];
     setSelectedRow(randomSeat.rowIndex);
     setSelectedSeat(randomSeat.seat);
-    updateStatus(`Se selecciono al azar ${ROW_LABELS[randomSeat.rowIndex]}-${randomSeat.seat}.`, 'neutral');
+    updateStatus(`Te tocó ${ROW_LABELS[randomSeat.rowIndex]}-${randomSeat.seat}.`, 'neutral');
   }
 
   async function buyTicket() {
     if (!wallet) {
-      updateStatus('Primero conecta MetaMask.', 'error');
+      updateStatus('Primero conectá MetaMask.', 'error');
       return;
     }
 
     if (!venueLoaded) {
-      updateStatus('Todavia se estan cargando los asientos.', 'neutral');
+      updateStatus('Todavía se están cargando los lugares.', 'neutral');
       return;
     }
 
     if (!selectedSeatAvailable) {
-      updateStatus('Ese asiento ya esta ocupado. Elegi otro.', 'error');
+      updateStatus('Ese lugar ya está ocupado. Probá otro.', 'error');
       return;
     }
 
     if (!ticketPriceWei) {
-      updateStatus('Aun no se pudo leer el precio del ticket.', 'error');
+      updateStatus('Todavía no pudimos leer el precio.', 'error');
       return;
     }
 
@@ -201,7 +201,7 @@ export default function Page() {
         value: ticketPriceWei
       });
       setTxHash(tx.hash);
-      updateStatus('Transaccion enviada. Esperando confirmacion...', 'neutral');
+      updateStatus('La transacción ya se envió. Esperando confirmación...', 'neutral');
 
       const receipt = await tx.wait();
       if (receipt?.status === 1) {
@@ -209,7 +209,7 @@ export default function Page() {
         await refreshContractData();
         await refreshVenueAvailability();
       } else {
-        updateStatus('La transaccion no fue confirmada.', 'error');
+        updateStatus('La transacción no se confirmó.', 'error');
       }
     } catch (error) {
       updateStatus(getPurchaseErrorMessage(error), 'error');
@@ -223,30 +223,30 @@ export default function Page() {
     const normalizedText = errorText.toLowerCase();
 
     if (normalizedText.includes('outoffunds') || normalizedText.includes('insufficient funds')) {
-      return 'No tenes fondos suficientes en Sepolia para pagar el ticket y el gas.';
+      return 'No te alcanza el saldo en Sepolia para pagar el ticket y el gas.';
     }
 
     if (normalizedText.includes('missing revert data') && normalizedText.includes('estimategas')) {
-      return 'No se pudo estimar el gas. Revisá saldo, red y que el asiento siga disponible.';
+      return 'No se pudo estimar el gas. Revisá saldo, red y si el lugar sigue libre.';
     }
 
     if (normalizedText.includes('user rejected') || normalizedText.includes('rejected the request')) {
-      return 'La transaccion fue rechazada en MetaMask.';
+      return 'Rechazaste la transacción en MetaMask.';
     }
 
     if (normalizedText.includes('ticket sales are closed')) {
-      return 'La venta de tickets ya cerro.';
+      return 'La venta ya cerró.';
     }
 
     if (normalizedText.includes('seat already sold')) {
-      return 'Ese asiento ya fue vendido. Elegi otro.';
+      return 'Ese lugar ya se vendió. Elegí otro.';
     }
 
     if (normalizedText.includes('incorrect ticket price')) {
-      return 'El valor enviado no coincide con el precio del ticket.';
+      return 'El valor que enviaste no coincide con el precio.';
     }
 
-    return errorText || 'No se pudo comprar el ticket.';
+    return errorText || 'No se pudo comprar la entrada.';
   }
 
   return (
@@ -254,28 +254,27 @@ export default function Page() {
       <section className="hero">
         <div>
           <p className="eyebrow">{eventName}</p>
-          <h1>Charlas, música, comida y una noche pensada para encontrarse con la comunidad.</h1>
+          <h1>Nueva edición del Festival de Blockchain</h1>
           <p className="lede">
-            Una experiencia urbana con speakers invitados, profesores y artistas en vivo
-            pensada para mezclar ideas, networking y buen morfi en un mismo lugar.
+            Ahora podés comprar tu ticket directamente con tu wallet, elegir tu lugar y vivir una experiencia única en la UNQ con charlas, música y mucho más. <b>¡Nos vemos el 15 de octubre de 2026 a partir de las 20 horas!</b>
           </p>
         </div>
 
         <div className="heroCard">
           <div>
-            <span className="label">Aforo total</span>
+            <span className="label">Capacidad total</span>
             <strong>{TOTAL_TICKETS} tickets</strong>
           </div>
           <div>
-            <span className="label">Tickets restantes</span>
+            <span className="label">Entradas restantes</span>
             <strong>{remainingTickets?.toString() ?? '...'}</strong>
           </div>
           <div>
-            <span className="label">Valor de entrada</span>
+            <span className="label">Valor de la entrada</span>
             <strong>{ticketPriceWei ? `${formatEther(ticketPriceWei)} ETH` : '...'}</strong>
           </div>
           <div>
-            <span className="label">Apertura / cierre</span>
+            <span className="label">Horario de cierre</span>
             <strong>{deadline ? new Date(Number(deadline) * 1000).toLocaleString('es-AR') : '...'}</strong>
           </div>
         </div>
@@ -285,7 +284,7 @@ export default function Page() {
         <div className="panelHeader">
           <div>
             <p className="sectionKicker">Entradas</p>
-            <h2>Elegi la ubicacion del ticket</h2>
+            <h2>Elegí tu lugar</h2>
           </div>
           <button className="ghostButton" onClick={connectWallet} disabled={connecting || !isConfigured}>
             {connecting ? 'Conectando...' : wallet ? 'Reconectar wallet' : 'Conectar MetaMask'}
@@ -293,7 +292,7 @@ export default function Page() {
         </div>
 
         <div className="connectionRow">
-          <span className="pill">Sede: {eventVenue}</span>
+          <span className="pill">Lugar: {eventVenue}</span>
           <span className="pill">Fecha: {eventDate}</span>
           <span className="pill">Wallet: {wallet?.address ? `${wallet.address.slice(0, 6)}...${wallet.address.slice(-4)}` : 'desconectada'}</span>
         </div>
@@ -310,7 +309,7 @@ export default function Page() {
                 {ROW_LABELS.map((label, rowIndex) => (
                   <div className="venueRow" key={label}>
                     <div className={rowIndex === selectedRow ? 'rowBadge active' : 'rowBadge'}>
-                      <span>Fila</span>
+                        <span>Fila</span>
                       <strong>{label}</strong>
                     </div>
 
@@ -332,7 +331,7 @@ export default function Page() {
                                   setSelectedSeat(seatNumber);
                                 }}
                                 disabled={loadingVenue || !venueLoaded || taken}
-                                title={taken ? `Ocupado ${label}-${seatNumber}` : `Seleccionar ${label}-${seatNumber}`}
+                                title={taken ? `Ocupado ${label}-${seatNumber}` : `Elegir ${label}-${seatNumber}`}
                               >
                                 {seatNumber}
                               </button>
@@ -347,30 +346,30 @@ export default function Page() {
             </div>
 
             <div className="seatLegend">
-              <span><i className="legendDot available" />Disponible</span>
-              <span><i className="legendDot selected" />Seleccionado</span>
+              <span><i className="legendDot available" />Libre</span>
+              <span><i className="legendDot selected" />Elegido</span>
               <span><i className="legendDot occupied" />Ocupado</span>
             </div>
           </div>
 
           <div className="pickerMeta">
             <div>
-              <span className="label">Sector elegido</span>
+              <span className="label">Sector</span>
               <strong>{rowLabel}</strong>
             </div>
             <div>
-              <span className="label">Ubicacion elegida</span>
+              <span className="label">Tu lugar</span>
               <strong>{rowLabel}-{selectedSeat}</strong>
             </div>
             <div>
-              <span className="label">Disponibilidad</span>
-              <strong>{loadingVenue ? 'Cargando asientos...' : venueLoaded && selectedSeatAvailable ? 'Disponible' : 'Ocupado'}</strong>
+              <span className="label">Estado</span>
+              <strong>{loadingVenue ? 'Cargando lugares...' : venueLoaded && selectedSeatAvailable ? 'Libre' : 'Tomado'}</strong>
             </div>
           </div>
 
           <div className="actionRow">
             <button className="ghostButton" onClick={assignRandomSeat} disabled={loadingVenue || !venueLoaded}>
-              Elegir lugar al azar
+              Tirar lugar al azar
             </button>
             <button className="primaryButton" onClick={buyTicket} disabled={purchasing || !wallet || !venueLoaded || !selectedSeatAvailable || !ticketPriceWei}>
               {purchasing ? 'Procesando...' : `Comprar ${rowLabel}-${selectedSeat}`}
@@ -379,33 +378,11 @@ export default function Page() {
         </div>
       </section>
 
-      <section className="panel infoGrid">
-        <article>
-          <h3>Charlas y paneles</h3>
-          <p>
-            Una agenda con profesores invitados, fundadores, investigadores y referentes de la escena
-            digital para debatir ideas, tendencias y futuro.
-          </p>
-        </article>
-        <article>
-          <h3>Escenario y artistas</h3>
-          <p>
-            Cierre con bandas en vivo, visuales inmersivos y DJs invitados para extender la noche hasta el after.
-          </p>
-        </article>
-        <article>
-          <h3>Gastronomía y encuentro</h3>
-          <p>
-            Patio gastronómico con food trucks, cafetería de especialidad y espacios pensados para networking
-            entre charlas, música y experiencias.
-          </p>
-        </article>
-      </section>
 
       {status ? (
         <section className={statusTone === 'success' ? 'toast toastSuccess' : statusTone === 'error' ? 'toast toastError' : 'toast toastNeutral'}>
           <div className="toastText">
-            <strong>{statusTone === 'success' ? 'Listo' : statusTone === 'error' ? 'Atencion' : 'Info'}</strong>
+            <strong>{statusTone === 'success' ? 'Listo' : statusTone === 'error' ? 'Ups' : 'Dato'}</strong>
             <span>{status}</span>
             {txHash ? <span className="mono">{txHash}</span> : null}
           </div>
