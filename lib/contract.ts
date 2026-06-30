@@ -7,6 +7,7 @@ export const CONTRACT_ABI = [
   'function eventDeadline() view returns (uint256)',
   'function nextTicketId() view returns (uint256)',
   'function owner() view returns (address)',
+  'function ownerOf(uint256 tokenId) view returns (address)',
   'function remainingTickets() view returns (uint256)',
   'function seatLabelOf(uint256 tokenId) view returns (string)',
   'function seatOfToken(uint256 tokenId) view returns (uint8 rowIndex, uint8 seatNumber)',

@@ -1,6 +1,7 @@
 'use client';
 
 import { BrowserProvider, Contract, formatEther } from 'ethers';
+import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
 import { CONTRACT_ABI, ROW_LABELS, SEATS_PER_ROW, TOTAL_TICKETS } from '../lib/contract';
 
@@ -11,7 +12,29 @@ type WalletState = {
 
 type RowAvailability = boolean[];
 
+type MyTicket = {
+  tokenId: string;
+  rowIndex: number;
+  seatNumber: number;
+  label: string;
+};
+
+type TicketPurchasedEvent = {
+  args?: {
+    buyer?: string;
+    tokenId?: bigint;
+    rowIndex?: bigint | number;
+    seatNumber?: bigint | number;
+  };
+};
+
+type EthereumProvider = {
+  request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+};
+
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS ?? '';
+const SEPOLIA_CHAIN_ID = 11155111n;
+const SEPOLIA_CHAIN_ID_HEX = '0xaa36a7';
 
 export default function Page() {
   const [wallet, setWallet] = useState<WalletState | null>(null);
@@ -28,8 +51,10 @@ export default function Page() {
   const [status, setStatus] = useState('');
   const [statusTone, setStatusTone] = useState<'neutral' | 'success' | 'error'>('neutral');
   const [txHash, setTxHash] = useState('');
+  const [myTickets, setMyTickets] = useState<MyTicket[]>([]);
 
   const isConfigured = useMemo(() => CONTRACT_ADDRESS.length > 0, []);
+  const isWrongNetwork = wallet !== null && wallet.chainId !== SEPOLIA_CHAIN_ID;
   const rowLabel = ROW_LABELS[selectedRow];
   const selectedSeatKey = selectedRow * SEATS_PER_ROW + selectedSeat - 1;
   const selectedSeatAvailable = venueLoaded && !availability[selectedSeatKey];
@@ -45,21 +70,88 @@ export default function Page() {
   useEffect(() => {
     void refreshContractData();
     void refreshVenueAvailability();
+    // Initial contract hydration only. User actions refresh these values later.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function getBrowserProvider() {
-    if (typeof window === 'undefined' || !(window as Window & { ethereum?: unknown }).ethereum) {
+    if (typeof window === 'undefined' || !(window as Window & { ethereum?: EthereumProvider }).ethereum) {
       throw new Error('MetaMask no esta disponible en este navegador.');
     }
 
-    const injectedProvider = (window as Window & { ethereum?: unknown }).ethereum;
+    const injectedProvider = (window as Window & { ethereum?: EthereumProvider }).ethereum;
     return new BrowserProvider(injectedProvider as never);
+  }
+
+  function getInjectedProvider() {
+    const injectedProvider = typeof window === 'undefined'
+      ? undefined
+      : (window as Window & { ethereum?: EthereumProvider }).ethereum;
+
+    if (!injectedProvider) {
+      throw new Error('MetaMask no esta disponible en este navegador.');
+    }
+
+    return injectedProvider;
   }
 
   async function getContract() {
     const provider = await getBrowserProvider();
     const signer = await provider.getSigner();
     return new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, signer);
+  }
+
+  async function isOnSepolia(provider: BrowserProvider): Promise<boolean> {
+    const network = await provider.getNetwork();
+    return network.chainId === SEPOLIA_CHAIN_ID;
+  }
+
+  function getWalletErrorCode(error: unknown) {
+    return typeof error === 'object' && error !== null && 'code' in error
+      ? Number((error as { code: unknown }).code)
+      : null;
+  }
+
+  async function switchToSepolia() {
+    const ethereum = getInjectedProvider();
+
+    try {
+      await ethereum.request({
+        method: 'wallet_switchEthereumChain',
+        params: [{ chainId: SEPOLIA_CHAIN_ID_HEX }]
+      });
+    } catch (error) {
+      if (getWalletErrorCode(error) !== 4902) {
+        throw error;
+      }
+
+      await ethereum.request({
+        method: 'wallet_addEthereumChain',
+        params: [
+          {
+            chainId: SEPOLIA_CHAIN_ID_HEX,
+            chainName: 'Sepolia',
+            nativeCurrency: {
+              name: 'Sepolia Ether',
+              symbol: 'ETH',
+              decimals: 18
+            },
+            rpcUrls: ['https://ethereum-sepolia-rpc.publicnode.com'],
+            blockExplorerUrls: ['https://sepolia.etherscan.io']
+          }
+        ]
+      });
+    }
+  }
+
+  async function requireSepolia(provider: BrowserProvider) {
+    if (await isOnSepolia(provider)) {
+      return provider;
+    }
+
+    updateStatus('MetaMask va a pedirte cambiar a Sepolia para continuar.', 'neutral');
+    await switchToSepolia();
+    return getBrowserProvider();
   }
 
   async function refreshContractData() {
@@ -71,6 +163,11 @@ export default function Page() {
     try {
       const provider = await getBrowserProvider().catch(() => null);
       if (!provider) {
+        return;
+      }
+
+      if (!(await isOnSepolia(provider))) {
+        updateStatus('Presiona Conectar MetaMask para cambiar a Sepolia y ver el contrato.', 'neutral');
         return;
       }
 
@@ -101,15 +198,31 @@ export default function Page() {
         return;
       }
 
-      const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
-      const seatChecks = await Promise.all(
-        Array.from({ length: TOTAL_TICKETS }, async (_, index) => contract.seatTaken(index + 1))
-      );
+      if (!(await isOnSepolia(provider))) {
+        return;
+      }
 
-      setAvailability(seatChecks.map((value: boolean) => Boolean(value)));
+      const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const events = await contract.queryFilter(contract.filters.TicketPurchased());
+      const seatChecks = Array.from({ length: TOTAL_TICKETS }, () => false);
+
+      for (const event of events) {
+        const args = (event as TicketPurchasedEvent).args;
+        if (!args) continue;
+
+        const rowIndex = Number(args.rowIndex ?? -1);
+        const seatNumber = Number(args.seatNumber ?? 0);
+        const seatKey = rowIndex * SEATS_PER_ROW + seatNumber - 1;
+
+        if (seatKey >= 0 && seatKey < TOTAL_TICKETS) {
+          seatChecks[seatKey] = true;
+        }
+      }
+
+      setAvailability(seatChecks);
       setVenueLoaded(true);
 
-      const firstFreeSeat = seatChecks.findIndex((taken: boolean) => !taken);
+      const firstFreeSeat = seatChecks.findIndex((taken) => !taken);
       if (firstFreeSeat >= 0) {
         setSelectedRow(Math.floor(firstFreeSeat / SEATS_PER_ROW));
         setSelectedSeat((firstFreeSeat % SEATS_PER_ROW) + 1);
@@ -122,13 +235,47 @@ export default function Page() {
     }
   }
 
+  async function loadMyTickets(address: string, provider: BrowserProvider) {
+    try {
+      const contract = new Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      const filter = contract.filters.TicketPurchased(address);
+      const events = await contract.queryFilter(filter);
+
+      const tickets: MyTicket[] = [];
+
+      for (const event of events) {
+        const args = (event as { args?: { tokenId?: bigint; rowIndex?: number; seatNumber?: number } }).args;
+        if (!args) continue;
+
+        const tokenId = args.tokenId?.toString() ?? '';
+        const rowIndex = Number(args.rowIndex ?? 0);
+        const seatNumber = Number(args.seatNumber ?? 0);
+
+        const currentOwner: string = await contract.ownerOf(tokenId);
+        if (currentOwner.toLowerCase() !== address.toLowerCase()) continue;
+
+        tickets.push({
+          tokenId,
+          rowIndex,
+          seatNumber,
+          label: `${ROW_LABELS[rowIndex]}-${seatNumber}`
+        });
+      }
+
+      setMyTickets(tickets);
+    } catch {
+      setMyTickets([]);
+    }
+  }
+
   async function connectWallet() {
     setConnecting(true);
     updateStatus('');
 
     try {
-      const provider = await getBrowserProvider();
+      let provider = await getBrowserProvider();
       await provider.send('eth_requestAccounts', []);
+      provider = await requireSepolia(provider);
       const signer = await provider.getSigner();
       const network = await provider.getNetwork();
       const address = await signer.getAddress();
@@ -136,8 +283,9 @@ export default function Page() {
       setWallet({ address, chainId: network.chainId });
       await refreshContractData();
       await refreshVenueAvailability();
+      await loadMyTickets(address, provider);
 
-      if (network.chainId !== 11155111n) {
+      if (network.chainId !== SEPOLIA_CHAIN_ID) {
         updateStatus('La wallet quedó conectada, pero mejor usar Sepolia.', 'neutral');
       } else {
         updateStatus('Wallet conectada en Sepolia.', 'success');
@@ -196,6 +344,8 @@ export default function Page() {
     setTxHash('');
 
     try {
+      const provider = await getBrowserProvider();
+      await requireSepolia(provider);
       const contract = await getContract();
       const tx = await contract.buyTicket(selectedRow, selectedSeat, {
         value: ticketPriceWei
@@ -208,6 +358,10 @@ export default function Page() {
         updateStatus(`Compra confirmada para ${rowLabel}-${selectedSeat}.`, 'success');
         await refreshContractData();
         await refreshVenueAvailability();
+        if (wallet) {
+          const provider = await getBrowserProvider();
+          await loadMyTickets(wallet.address, provider);
+        }
       } else {
         updateStatus('La transacción no se confirmó.', 'error');
       }
@@ -280,6 +434,28 @@ export default function Page() {
         </div>
       </section>
 
+      {myTickets.length > 0 && (
+        <section className="myTicketsSection">
+          <h2 className="myTicketsTitle">Tus entradas</h2>
+          <ul className="myTicketsList">
+            {myTickets.map((ticket) => (
+              <li key={ticket.tokenId} className="myTicketItem">
+                <span className="myTicketLabel">{ticket.label}</span>
+                <span className="myTicketSub">Token #{ticket.tokenId}</span>
+                <a
+                  className="myTicketLink"
+                  href={`https://sepolia.etherscan.io/token/${CONTRACT_ADDRESS}?a=${ticket.tokenId}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Ver en Etherscan ↗
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <section className="panel">
         <div className="panelHeader">
           <div>
@@ -287,7 +463,10 @@ export default function Page() {
             <h2>Elegí tu lugar</h2>
           </div>
           <button className="ghostButton" onClick={connectWallet} disabled={connecting || !isConfigured}>
-            {connecting ? 'Conectando...' : wallet ? 'Reconectar wallet' : 'Conectar MetaMask'}
+            {!connecting && (
+              <Image src="/metamask-fox.svg" alt="" width={18} height={18} className="metamaskIcon" aria-hidden="true" />
+            )}
+            {connecting ? 'Conectando...' : isWrongNetwork ? 'Cambiar a Sepolia' : wallet ? 'Reconectar wallet' : 'Conectar MetaMask'}
           </button>
         </div>
 
@@ -308,8 +487,11 @@ export default function Page() {
               <div className="venueMapBody">
                 {ROW_LABELS.map((label, rowIndex) => (
                   <div className="venueRow" key={label}>
-                    <div className={rowIndex === selectedRow ? 'rowBadge active' : 'rowBadge'}>
-                        <span>Fila</span>
+                    <div
+                      className={rowIndex === selectedRow ? 'rowBadge active' : 'rowBadge'}
+                      onClick={() => setSelectedRow(rowIndex)}
+                    >
+                      <span>Fila</span>
                       <strong>{label}</strong>
                     </div>
 
@@ -378,13 +560,31 @@ export default function Page() {
         </div>
       </section>
 
+      <section className="credits">
+        <p className="creditsLabel">Proyecto desarrollado por</p>
+        <ul className="creditsList">
+          <li>Ezequiel González</li>
+          <li>Agustín Di Santo</li>
+          <li>Andrés Mora</li>
+        </ul>
+      </section>
 
       {status ? (
         <section className={statusTone === 'success' ? 'toast toastSuccess' : statusTone === 'error' ? 'toast toastError' : 'toast toastNeutral'}>
           <div className="toastText">
-            <strong>{statusTone === 'success' ? 'Listo' : statusTone === 'error' ? 'Ups' : 'Dato'}</strong>
+            <strong>{statusTone === 'success' ? 'Listo' : statusTone === 'error' ? 'Ups' : txHash ? 'Enviado' : 'Dato'}</strong>
             <span>{status}</span>
-            {txHash ? <span className="mono">{txHash}</span> : null}
+            {txHash ? (
+              <a
+                className="mono toastTxLink"
+                href={`https://sepolia.etherscan.io/tx/${txHash}`}
+                target="_blank"
+                rel="noreferrer"
+                title="Ver en Etherscan"
+              >
+                {txHash.slice(0, 10)}…{txHash.slice(-8)}
+              </a>
+            ) : null}
           </div>
           <button className="toastClose" onClick={() => updateStatus('', 'neutral')} aria-label="Cerrar mensaje">
             ×
